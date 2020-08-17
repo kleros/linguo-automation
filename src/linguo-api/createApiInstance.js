@@ -150,7 +150,7 @@ export default function createApiInstance({ linguo, batchSend }) {
 
   async function _fetchAppealContributors(id) {
     // TODO: use AppealContribution event after upgrading Linguo version to obtain this.
-    id = String(id);
+    const taskId = String(id);
 
     const { status } = await fetchTaskById(id);
     if (![TaskStatus.DisputeCreated, TaskStatus.Resolved].includes(Number(status))) {
@@ -161,14 +161,14 @@ export default function createApiInstance({ linguo, batchSend }) {
     }
 
     const eventFixtures = [
-      { _taskID: id, _contributor: '0xceB4c079Dd21494E0bc99DA732EAdf220b727389', _party: 1 },
-      { _taskID: id, _contributor: '0xA3eA2B441Ed9698E3053ec8848B69E9ce5f25158', _party: 1 },
-      { _taskID: id, _contributor: '0xBdB4A1d8D0F0c228519828630379A1223666dcba', _party: 1 },
-      { _taskID: id, _contributor: '0xBEC2BfE740EEE9FA9A1E08aD0579188CF3cc0758', _party: 1 },
-      { _taskID: id, _contributor: '0xceB4c079Dd21494E0bc99DA732EAdf220b727389', _party: 2 },
-      { _taskID: id, _contributor: '0xA3eA2B441Ed9698E3053ec8848B69E9ce5f25158', _party: 2 },
-      { _taskID: id, _contributor: '0xBdB4A1d8D0F0c228519828630379A1223666dcba', _party: 2 },
-      { _taskID: id, _contributor: '0xBEC2BfE740EEE9FA9A1E08aD0579188CF3cc0758', _party: 2 },
+      { _taskID: taskId, _contributor: '0xceB4c079Dd21494E0bc99DA732EAdf220b727389', _party: 1 },
+      { _taskID: taskId, _contributor: '0xA3eA2B441Ed9698E3053ec8848B69E9ce5f25158', _party: 1 },
+      { _taskID: taskId, _contributor: '0xBdB4A1d8D0F0c228519828630379A1223666dcba', _party: 1 },
+      { _taskID: taskId, _contributor: '0xBEC2BfE740EEE9FA9A1E08aD0579188CF3cc0758', _party: 1 },
+      { _taskID: taskId, _contributor: '0xceB4c079Dd21494E0bc99DA732EAdf220b727389', _party: 2 },
+      { _taskID: taskId, _contributor: '0xA3eA2B441Ed9698E3053ec8848B69E9ce5f25158', _party: 2 },
+      { _taskID: taskId, _contributor: '0xBdB4A1d8D0F0c228519828630379A1223666dcba', _party: 2 },
+      { _taskID: taskId, _contributor: '0xBEC2BfE740EEE9FA9A1E08aD0579188CF3cc0758', _party: 2 },
     ];
 
     const groupUniqueContributors = (set, { _contributor }) => set.add(_contributor);
@@ -219,6 +219,7 @@ export default function createApiInstance({ linguo, batchSend }) {
 }
 
 const normalizeTask = evolve({
+  id: Number,
   submissionTimeout: Number,
   status: Number,
   lastInteraction: Number,

@@ -9,7 +9,15 @@ export default async function checkNewTasks({ linguoOnChainApi }) {
   const newTasks = await linguoOnChainApi.fetchNewTasks({ fromBlock, toBlock });
 
   const stats = {
-    data: map(({ contractAddress, id }) => `${contractAddress}/${id}`, newTasks),
+    data: map(
+      ({ contractAddress, id, status, deadline }) => ({
+        contractAddress,
+        id,
+        status,
+        deadline,
+      }),
+      newTasks
+    ),
     fromBlock,
     toBlock,
   };
