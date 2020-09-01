@@ -107,30 +107,36 @@ provider:
 functions:
   checkNewTasks:
     handler: src/handler.checkNewTasks
+    timeout: 10
     events:
       - schedule:
           rate: cron(0 * * * ? *) # every 1 hour at hh:00
   checkIncompleteTasks:
     handler: src/handler.checkIncompleteTasks
+    timeout: 10
     events:
       - schedule:
           rate: cron(0 */4 * * ? *) # every 4 hours at hh:00
   checkTasksAwaitingReview:
     handler: src/handler.checkTasksAwaitingReview
+    timeout: 10
     events:
       - schedule:
           rate: cron(10 */4 * * ? *) # every 4 hours at hh:10
   checkTasksInDispute:
     handler: src/handler.checkTasksInDispute
+    timeout: 10
     events:
       - schedule:
           rate: cron(20 */4 * * ? *) # every 4 hours at hh:20
   checkResolvedTasks:
     handler: src/handler.checkResolvedTasks
+    timeout: 10
     events:
       - schedule:
           rate: cron(30 */4 * * ? *) # every 4 hours at hh:30
   fullSync:
+    timeout: 10
     handler: src/handler.fullSync
 
 # you can add CloudFormation resource templates here

@@ -9,11 +9,13 @@ const asyncPipe = pipeWith((f, res) => andThen(f, P.resolve(res)));
 export default async function checkIncompleteTasks({ linguoOnChainApi }) {
   async function fetchOnChainCounterpart(offChainTask) {
     const { contractAddress, id } = offChainTask;
+    console.debug({ id: `${contractAddress}/${id}` }, 'Fetching on-chain counterpart');
     return [offChainTask, mergeRight(offChainTask, await linguoOnChainApi.fetchTaskById(contractAddress, id))];
   }
 
   async function reimburseRequester(task) {
     const { contractAddress, id } = task;
+    console.debug({ id: `${contractAddress}/${id}` }, 'Requesting reimbursement');
     await linguoOnChainApi.reimburseRequester(contractAddress, id);
     return task;
   }
