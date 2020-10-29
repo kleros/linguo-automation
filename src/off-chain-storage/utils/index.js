@@ -16,7 +16,7 @@ export function createEnhancedClient() {
   const client = new DynamoDB.DocumentClient(params);
 
   const writeSingleBatch = curry(function _writeSingleBatch(tableName, batch) {
-    client
+    return client
       .batchWrite({
         RequestItems: {
           [tableName]: batch,
@@ -26,11 +26,11 @@ export function createEnhancedClient() {
   });
 
   const writeAllBatches = function _writeAllBatches(tableName, items) {
-    return compose(P.all, map(writeSingleBatch(tableName)), splitBatches)(items);
+    return compose(map(writeSingleBatch(tableName)), splitBatches)(items);
   };
 
   const batchWrite = curry(async function _batchWrite(tableName, items) {
-    return flatten(await writeAllBatches(tableName, items));
+    return flatten(await P.all(writeAllBatches(tableName, items)));
   });
 
   return {

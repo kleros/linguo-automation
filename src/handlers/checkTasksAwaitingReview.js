@@ -22,7 +22,7 @@ export default async function checkTasksAwaitingReview({ linguoOnChainApi }) {
   async function fetchOnChainCounterpart(offChainTask) {
     const { contractAddress, id } = offChainTask;
 
-    const [onChainTask, reviewTimeout] = await await Promise.all([
+    const [onChainTask, reviewTimeout] = await Promise.all([
       linguoOnChainApi.fetchTaskById(contractAddress, id),
       fetchReviewTimeout(offChainTask),
     ]);
