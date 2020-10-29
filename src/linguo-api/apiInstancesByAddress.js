@@ -1,4 +1,5 @@
-import { Linguo, LinguoToken } from '@kleros/contract-deployments/linguo';
+import { Linguo } from '@kleros/linguo-contracts/artifacts/Linguo.json';
+import { LinguoToken } from '@kleros/linguo-contracts/artifacts/LinguoToken.json';
 import createBatchSend from 'web3-batched-send';
 import { compose, curry, indexBy, map, mergeAll, path, pluck, uniq, values } from 'ramda';
 import web3, { CHAIN_ID } from '~/shared/web3';

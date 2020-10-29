@@ -30,10 +30,10 @@ plugins:
 custom:
   webpack:
     webpackConfig: 'webpack.config.js'   # Name of webpack configuration file
+    packager: 'yarn'   # Packager that will be used to package your external modules
     includeModules: # enable auto-packing of external modules
       forceExclude:
         - aws-sdk
-    packager: 'yarn'   # Packager that will be used to package your external modules
 
   dynamodb:
     stages:

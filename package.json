@@ -6,7 +6,6 @@
   "repository": "https://github.com/kleros/linguo-bot",
   "license": "MIT",
   "author": "Kleros",
-  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "sls webpack --out dist",
@@ -18,7 +17,7 @@
   },
   "dependencies": {
     "@kleros/archon": "0.10.2",
-    "@kleros/contract-deployments": "^0.3.2",
+    "@kleros/linguo-contracts": "^0.1.1",
     "aws-sdk": "^2.730.0",
     "core-js": "3",
     "dayjs": "^1.8.33",
@@ -59,14 +58,14 @@
     "prettier": "^2.0.2",
     "prettier-config-standard": "^1.0.1",
     "prettier-plugin-packagejson": "^2.1.2",
-    "serverless": "^1.78.1",
+    "serverless": "^2.9.0",
     "serverless-dotenv-plugin": "^3.0.0",
     "serverless-dynamodb-client": "^0.0.2",
     "serverless-dynamodb-local": "^0.2.39",
     "serverless-offline": "^6.5.0",
     "serverless-plugin-ifelse": "^1.0.5",
     "serverless-prune-plugin": "^1.4.3",
-    "serverless-webpack": "^5.3.3",
+    "serverless-webpack": "^5.3.5",
     "webpack": "^4.44.1",
     "webpack-node-externals": "^2.5.1"
   }
