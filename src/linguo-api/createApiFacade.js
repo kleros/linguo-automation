@@ -14,7 +14,7 @@ const publicApiSkeleton = {
   fetchTaskById(contractAddress, id) {},
   fetchReviewTimeout(contractAddress) {},
   fetchHasDispute(contractAddress, id) {},
-  fetchAllContributorsWithPendingWithdraws(contractAddress, id) {},
+  fetchAllContributorsWithPendingWithdrawals(contractAddress, id) {},
   reimburseRequester(contractAddress, id) {},
   acceptTranslation(contractAddress, id) {},
   withdrawAllFeesAndRewards(contractAddress, id, beneficiary) {},

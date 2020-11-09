@@ -1,7 +1,6 @@
-import { Linguo } from '@kleros/linguo-contracts/artifacts/Linguo.json';
-import { LinguoToken } from '@kleros/linguo-contracts/artifacts/LinguoToken.json';
+import Linguo from '@kleros/linguo-contracts/artifacts/Linguo.json';
 import createBatchSend from 'web3-batched-send';
-import { compose, curry, indexBy, map, mergeAll, path, pluck, uniq, values } from 'ramda';
+import { compose, curry, indexBy, map, path, uniq, values } from 'ramda';
 import web3, { CHAIN_ID } from '~/shared/web3';
 import createApiInstance from './createApiInstance';
 
@@ -18,21 +17,12 @@ export function createApiInstancesByAddress({ account }) {
   const contractAddresses = values(JSON.parse(process.env.LINGUO_CONTRACT_ADDRESSES ?? {})[CHAIN_ID]);
   const indexByAddress = indexBy(path(['options', 'address']));
 
-  const linguoContractsByAddress = compose(
+  const contractsByAddress = compose(
     indexByAddress,
     map(createLinguoContract(Linguo.abi)),
     uniq,
-    pluck('linguo')
+    values
   )(contractAddresses);
-
-  const linguoTokenContractsByAddresses = compose(
-    indexByAddress,
-    map(createLinguoContract(LinguoToken.abi)),
-    uniq,
-    pluck('linguoToken')
-  )(contractAddresses);
-
-  const contractsByAddress = mergeAll([linguoContractsByAddress, linguoTokenContractsByAddresses]);
 
   const batchSend = createBatchSend(web3, txBatcherContractAddress, account.privateKey, DEBOUNCE_PERIOD);
 

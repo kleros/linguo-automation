@@ -1,4 +1,4 @@
-export default async function _getPastEvents(contract, eventName, { filter, fromBlock = 0, toBlock = 'latest' } = {}) {
+export default async function getPastEvents(contract, eventName, { filter, fromBlock = 0, toBlock = 'latest' } = {}) {
   return contract
     .getPastEvents(eventName, {
       fromBlock,

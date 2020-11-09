@@ -31,8 +31,8 @@ export default async function checkResolvedTasks({ linguoOnChainApi }) {
       linguoOnChainApi.fetchTaskById(contractAddress, id),
       fetchHasDispute(offChainTask),
     ]);
-    const pendingWithdraws = hasDispute
-      ? await linguoOnChainApi.fetchAllContributorsWithPendingWithdraws(contractAddress, id)
+    const pendingWithdrawals = hasDispute
+      ? await linguoOnChainApi.fetchAllContributorsWithPendingWithdrawals(contractAddress, id)
       : {};
 
     return [
@@ -42,14 +42,14 @@ export default async function checkResolvedTasks({ linguoOnChainApi }) {
         onChainTask,
         {
           hasDispute,
-          pendingWithdraws,
+          pendingWithdrawals,
         },
       ]),
     ];
   }
 
   async function batchWithdrawFeesAndRewards(task) {
-    const { contractAddress, id, pendingWithdraws } = task;
+    const { contractAddress, id, pendingWithdrawals } = task;
 
     const logResult = map(
       tap(p => {
@@ -97,7 +97,7 @@ export default async function checkResolvedTasks({ linguoOnChainApi }) {
       filter(p => p.status === 'fulfilled'),
       pluck('value'),
       fromPairs,
-    ])(pendingWithdraws);
+    ])(pendingWithdrawals);
 
     return {
       ...task,
@@ -105,7 +105,7 @@ export default async function checkResolvedTasks({ linguoOnChainApi }) {
     };
   }
 
-  const hasPendingWithdraws = ([_, { pendingWithdraws }]) => !isEmpty(pendingWithdraws);
+  const hasPendingWithdrawals = ([_, { pendingWithdrawals }]) => !isEmpty(pendingWithdrawals);
   const submitBatchWithdrawTx = asyncPipe([
     ([_, onChainTask]) => onChainTask,
     batchWithdrawFeesAndRewards,
@@ -127,7 +127,7 @@ export default async function checkResolvedTasks({ linguoOnChainApi }) {
   const pipeline = asyncPipe([
     fetchOnChainCounterpart,
     cond([
-      [hasPendingWithdraws, submitBatchWithdrawTx],
+      [hasPendingWithdrawals, submitBatchWithdrawTx],
       [() => true, removeOffchainTaskCache],
     ]),
   ]);

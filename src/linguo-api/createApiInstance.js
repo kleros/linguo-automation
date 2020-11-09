@@ -17,6 +17,7 @@ import TaskParty from '~/entities/TaskParty';
 import TaskStatus from '~/entities/TaskStatus';
 import archon from '~/shared/archon';
 import * as P from '~/shared/promise';
+import getPastEvents from './getPastEvents';
 
 export default function createApiInstance({ linguo, batchSend }) {
   const contractAddress = linguo.options.address;
@@ -30,7 +31,7 @@ export default function createApiInstance({ linguo, batchSend }) {
   }
 
   async function fetchNewTasks({ fromBlock = 0, toBlock = 'latest' }) {
-    const events = await _getPastEvents(linguo, 'TaskCreated', { fromBlock, toBlock });
+    const events = await getPastEvents(linguo, 'TaskCreated', { fromBlock, toBlock });
 
     const allNewTasks = await P.allSettled(
       map(
@@ -72,7 +73,7 @@ export default function createApiInstance({ linguo, batchSend }) {
   }
 
   async function fetchHasDispute(id) {
-    const events = await _getPastEvents(linguo, 'TranslationChallenged', { filter: { _taskID: String(id) } });
+    const events = await getPastEvents(linguo, 'TranslationChallenged', { filter: { _taskID: String(id) } });
     return events.length > 0;
   }
 
@@ -100,7 +101,7 @@ export default function createApiInstance({ linguo, batchSend }) {
     });
   }
 
-  async function fetchAllContributorsWithPendingWithdraws(id) {
+  async function fetchAllContributorsWithPendingWithdrawals(id) {
     const allContributorsToWinner = await _fetchAllContributorsToWinner(id);
     const balancePairs = await Promise.all(
       map(async address => [address, await _fetchWithdrawableAmount(id, address)], allContributorsToWinner)
@@ -149,9 +150,6 @@ export default function createApiInstance({ linguo, batchSend }) {
   }
 
   async function _fetchAppealContributors(id) {
-    // TODO: use AppealContribution event after upgrading Linguo version to obtain this.
-    const taskId = String(id);
-
     const { status } = await fetchTaskById(id);
     if (![TaskStatus.DisputeCreated, TaskStatus.Resolved].includes(Number(status))) {
       return {
@@ -160,19 +158,10 @@ export default function createApiInstance({ linguo, batchSend }) {
       };
     }
 
-    const eventFixtures = [
-      { _taskID: taskId, _contributor: '0xceB4c079Dd21494E0bc99DA732EAdf220b727389', _party: 1 },
-      { _taskID: taskId, _contributor: '0xA3eA2B441Ed9698E3053ec8848B69E9ce5f25158', _party: 1 },
-      { _taskID: taskId, _contributor: '0xBdB4A1d8D0F0c228519828630379A1223666dcba', _party: 1 },
-      { _taskID: taskId, _contributor: '0xBEC2BfE740EEE9FA9A1E08aD0579188CF3cc0758', _party: 1 },
-      { _taskID: taskId, _contributor: '0xceB4c079Dd21494E0bc99DA732EAdf220b727389', _party: 2 },
-      { _taskID: taskId, _contributor: '0xA3eA2B441Ed9698E3053ec8848B69E9ce5f25158', _party: 2 },
-      { _taskID: taskId, _contributor: '0xBdB4A1d8D0F0c228519828630379A1223666dcba', _party: 2 },
-      { _taskID: taskId, _contributor: '0xBEC2BfE740EEE9FA9A1E08aD0579188CF3cc0758', _party: 2 },
-    ];
+    const events = await getPastEvents(linguo, 'AppealContribution', { filter: { _taskID: String(id) } });
 
     const groupUniqueContributors = (set, { _contributor }) => set.add(_contributor);
-    const contributorSetsByParty = reduceBy(groupUniqueContributors, new Set(), prop('_party'), eventFixtures);
+    const contributorSetsByParty = reduceBy(groupUniqueContributors, new Set(), prop('_party'), events);
 
     const defaultValues = {
       [TaskParty.Translator]: [],
@@ -189,21 +178,6 @@ export default function createApiInstance({ linguo, batchSend }) {
     return linguo.methods.amountWithdrawable(id, beneficiary).call();
   }
 
-  async function _getPastEvents(contract, eventName, { filter, fromBlock = 0, toBlock = 'latest' } = {}) {
-    const events = await contract.getPastEvents(eventName, {
-      fromBlock,
-      toBlock,
-      filter,
-    });
-
-    if (events.some(({ event }) => event === undefined)) {
-      console.info({ eventName, filter, events }, 'Failed to get log values for event');
-      throw new Error('Failed to get log values for event');
-    }
-
-    return events;
-  }
-
   return {
     fetchAllTasks,
     fetchNewTasks,
@@ -211,7 +185,7 @@ export default function createApiInstance({ linguo, batchSend }) {
     fetchTaskById,
     fetchReviewTimeout,
     fetchHasDispute,
-    fetchAllContributorsWithPendingWithdraws,
+    fetchAllContributorsWithPendingWithdrawals,
     reimburseRequester,
     acceptTranslation,
     withdrawAllFeesAndRewards,
