@@ -6,6 +6,7 @@ import {
   into,
   map,
   mergeRight,
+  path,
   prop,
   propEq,
   range,
@@ -146,7 +147,7 @@ export default function createApiInstance({ linguo, batchSend }) {
       throw new Error(`Task ${contractAddress}/${id} is not resolved yet.`);
     }
 
-    return ruling;
+    return Number(ruling);
   }
 
   async function _fetchAppealContributors(id) {
@@ -160,8 +161,13 @@ export default function createApiInstance({ linguo, batchSend }) {
 
     const events = await getPastEvents(linguo, 'AppealContribution', { filter: { _taskID: String(id) } });
 
-    const groupUniqueContributors = (set, { _contributor }) => set.add(_contributor);
-    const contributorSetsByParty = reduceBy(groupUniqueContributors, new Set(), prop('_party'), events);
+    const groupUniqueContributors = (set, event) => set.add(path(['returnValues', '_contributor'], event));
+    const contributorSetsByParty = reduceBy(
+      groupUniqueContributors,
+      new Set(),
+      path(['returnValues', '_party']),
+      events
+    );
 
     const defaultValues = {
       [TaskParty.Translator]: [],
