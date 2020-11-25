@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@kleros/archon": "0.10.2",
-    "@kleros/linguo-contracts": "^0.1.1",
+    "@kleros/linguo-contracts": "~0.4.0",
     "aws-sdk": "^2.730.0",
     "core-js": "3",
     "dayjs": "^1.8.33",
