@@ -11,7 +11,7 @@
 #
 # Happy Coding!
 
-service: linguo-bot
+service: linguo-automation
 # app and org for use with dashboard.serverless.com
 #app: your-app-name
 #org: your-org-name
@@ -69,6 +69,7 @@ provider:
   environment:
     TASKS_TABLE_NAME: Linguo_TranslationTasks_${self:custom.currentStage}
     CHAIN_METADATA_TABLE_NAME: Linguo_ChainMetadata_${self:custom.currentStage}
+    USER_SETTINGS_TABLE_NAME: Linguo_UserSettings_${self:custom.currentStage}
 
 # you can add statements to the Lambda function's IAM Role here
   iamRoleStatements:
@@ -94,6 +95,7 @@ provider:
           - ""
           - - Fn::GetAtt: [ TranslationTasksTable, Arn ]
             - "/index/byStatus"
+        - Fn::GetAtt: [ UserSettingsTable, Arn ]
 
 # you can define service wide environment variables here
 #  environment:
@@ -143,6 +145,24 @@ functions:
     timeout: 900
     handler: src/handler.fullSync
 
+  saveUserSettings:
+    handler: src/handler.saveUserSettings
+    events:
+      - http:
+          path: user/{address}/settings
+          method: PUT
+          cors: true
+          request:
+            schema:
+              application/json: ${file(src/schemas/saveUserSettings.json)}
+  getUserSettings:
+    handler: src/handler.getUserSettings
+    events:
+      - http:
+          path: user/{address}/settings
+          method: GET
+          cors: true
+
 # you can add CloudFormation resource templates here
 resources:
   Resources:
@@ -185,6 +205,20 @@ resources:
             AttributeType: S
         KeySchema:
           - AttributeName: key
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    UserSettingsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.USER_SETTINGS_TABLE_NAME}
+        AttributeDefinitions:
+          - AttributeName: address
+            AttributeType: S
+        KeySchema:
+          - AttributeName: address
             KeyType: HASH
         ProvisionedThroughput:
           ReadCapacityUnits: 1

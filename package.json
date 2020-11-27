@@ -1,12 +1,12 @@
 {
-  "name": "@kleros/linguo-bot",
+  "name": "@kleros/linguo-automation",
   "version": "0.1.0",
   "private": false,
-  "description": "Linguo automation bot.",
-  "repository": "https://github.com/kleros/linguo-bot",
+  "description": "Linguo Automation Services.",
+  "repository": "https://github.com/kleros/linguo-automation",
   "license": "MIT",
   "author": "Kleros",
-  "main": "dist/index.js",
+  "module": "src/handler.js",
   "scripts": {
     "build": "sls webpack --out dist",
     "clean": "rm -rf .webpack dist",
