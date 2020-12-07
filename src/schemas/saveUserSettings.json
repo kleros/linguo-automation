@@ -1,0 +1,26 @@
+{
+  "definitions": {},
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "type": "object",
+  "title": "Save user settings schema",
+  "required": [
+    "derivedAccountAddress",
+    "message",
+    "signature"
+  ],
+  "properties": {
+    "derivedAccountAddress": {
+      "type": "string",
+      "title": "The address of the derived account from user's main account.",
+      "default": ""
+    },
+    "message": {
+      "type": "string",
+      "title": "The message containing the JSON-stringified payload with the user settings."
+    },
+    "signature": {
+      "type": "string",
+      "title": "The signature of the message with the derived account private key."
+    }
+  }
+}

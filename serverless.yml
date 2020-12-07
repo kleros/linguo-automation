@@ -11,7 +11,7 @@
 #
 # Happy Coding!
 
-service: linguo-bot
+service: linguo-automation
 # app and org for use with dashboard.serverless.com
 #app: your-app-name
 #org: your-org-name
@@ -23,9 +23,15 @@ service: linguo-bot
 plugins:
   - serverless-webpack
   - serverless-dotenv-plugin
+  - serverless-pseudo-parameters
   - serverless-plugin-ifelse
   - serverless-dynamodb-local
   - serverless-offline
+
+# package:
+#   individually: true
+
+useDotenv: true
 
 custom:
   webpack:
@@ -57,6 +63,16 @@ custom:
       ElseSet:
         provider.environment.CHAIN_ID: 1
 
+  webServiceEndpoint:
+    Fn::Join:
+      - ''
+      - - 'https://'
+        - Ref: ApiGatewayRestApi
+        - '.unsubscribe.'
+        - Ref: AWS::Region
+        - '.amazonaws.com/'
+        - ${self:provider.stage}
+
   prune:
     automatic: true
     number: 4
@@ -66,9 +82,12 @@ provider:
   region: ${env:AWS_REGION,'us-east-2'}
   stage: kovan
   runtime: nodejs10.x
+  apiGateway:
+    shouldStartNameWithService: true
   environment:
     TASKS_TABLE_NAME: Linguo_TranslationTasks_${self:custom.currentStage}
     CHAIN_METADATA_TABLE_NAME: Linguo_ChainMetadata_${self:custom.currentStage}
+    USER_SETTINGS_TABLE_NAME: Linguo_UserSettings_${self:custom.currentStage}
 
 # you can add statements to the Lambda function's IAM Role here
   iamRoleStatements:
@@ -94,6 +113,7 @@ provider:
           - ""
           - - Fn::GetAtt: [ TranslationTasksTable, Arn ]
             - "/index/byStatus"
+        - Fn::GetAtt: [ UserSettingsTable, Arn ]
 
 # you can define service wide environment variables here
 #  environment:
@@ -110,38 +130,74 @@ provider:
 
 functions:
   checkNewTasks:
-    handler: src/handler.checkNewTasks
+    handler: src/handlers/task-lifecycle/index.checkNewTasks
     timeout: 900
     events:
       - schedule:
           rate: cron(0 * * * ? *) # every hour hh:00
   checkIncompleteTasks:
-    handler: src/handler.checkIncompleteTasks
+    handler: src/handlers/task-lifecycle/index.checkIncompleteTasks
     timeout: 900
     events:
       - schedule:
           rate: cron(0 * * * ? *) # every hour hh:00
   checkTasksAwaitingReview:
-    handler: src/handler.checkTasksAwaitingReview
+    handler: src/handlers/task-lifecycle/index.checkTasksAwaitingReview
     timeout: 900
     events:
       - schedule:
           rate: cron(10 * * * ? *) # every hour hh:10
   checkTasksInDispute:
-    handler: src/handler.checkTasksInDispute
+    handler: src/handlers/task-lifecycle/index.checkTasksInDispute
     timeout: 900
     events:
       - schedule:
           rate: cron(20 * * * ? *) # every hour hh:20
   checkResolvedTasks:
-    handler: src/handler.checkResolvedTasks
+    handler: src/handlers/task-lifecycle/index.checkResolvedTasks
     timeout: 900
     events:
       - schedule:
           rate: cron(30 * * * ? *) # every hour at hh:30
   fullSync:
     timeout: 900
-    handler: src/handler.fullSync
+    handler: src/handlers/task-lifecycle/index.fullSync
+
+  saveUserSettings:
+    handler: src/handlers/user-settings/index.saveUserSettings
+    events:
+      - http:
+          path: user/{address}/settings
+          method: PUT
+          cors: true
+          request:
+            schema:
+              application/json: ${file(src/schemas/saveUserSettings.json)}
+  getUserSettings:
+    handler: src/handlers/user-settings/index.getUserSettings
+    events:
+      - http:
+          path: user/{address}/settings
+          method: GET
+          cors: true
+
+  unsubscribe:
+    handler: src/handlers/user-settings/index.receiveUnsubscription
+    events:
+      - http:
+          path: unsubscription
+          method: GET
+          cors: true
+
+  eventsWebhook:
+    handler: src/handlers/events-webhook/index.receiveEvent
+    events:
+      - http:
+          path: event
+          method: POST
+          cors: true
+    environment:
+      UNSUBSCRIBE_ENDPOINT: https://#{ApiGatewayRestApi}.execute-api.#{AWS::Region}.amazonaws.com/${self:provider.stage}/unsubscription
 
 # you can add CloudFormation resource templates here
 resources:
@@ -185,6 +241,20 @@ resources:
             AttributeType: S
         KeySchema:
           - AttributeName: key
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    UserSettingsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.USER_SETTINGS_TABLE_NAME}
+        AttributeDefinitions:
+          - AttributeName: address
+            AttributeType: S
+        KeySchema:
+          - AttributeName: address
             KeyType: HASH
         ProvisionedThroughput:
           ReadCapacityUnits: 1

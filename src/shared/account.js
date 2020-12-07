@@ -12,10 +12,10 @@ export async function getDefaultAccount() {
 
   const privateKey = await getPrivateKey();
 
-  const accountInfo = web3.eth.accounts.privateKeyToAccount(privateKey);
-  web3.eth.accounts.wallet.add(accountInfo);
+  const account = web3.eth.accounts.privateKeyToAccount(privateKey);
+  web3.eth.accounts.wallet.add(account);
 
-  return accountInfo;
+  return account;
 }
 
 async function getPrivateKey() {

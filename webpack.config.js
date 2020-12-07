@@ -21,6 +21,10 @@ module.exports = (async () => {
         '~': path.resolve(__dirname, 'src'),
       },
     },
+    optimization: {
+      // https://github.com/serverless-heaven/serverless-webpack/issues/651
+      concatenateModules: false,
+    },
     plugins: [
       new CleanWebpackPlugin(),
       new webpack.DefinePlugin({

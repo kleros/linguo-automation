@@ -1,11 +1,11 @@
-import fullSyncHandler from './handlers/fullSync';
-import checkIncompleteTasksHandler from './handlers/checkIncompleteTasks';
-import checkTasksAwaitingReviewHandler from './handlers/checkTasksAwaitingReview';
-import checkNewTasksHandler from './handlers/checkNewTasks';
-import checkTasksInDisputeHandler from './handlers/checkTasksInDispute';
-import checkResolvedTasksHandler from './handlers/checkResolvedTasks';
-import { createApiFacade } from './linguo-api';
-import { getDefaultAccount } from './shared/account';
+import fullSyncHandler from './fullSync';
+import checkIncompleteTasksHandler from './checkIncompleteTasks';
+import checkTasksAwaitingReviewHandler from './checkTasksAwaitingReview';
+import checkNewTasksHandler from './checkNewTasks';
+import checkTasksInDisputeHandler from './checkTasksInDispute';
+import checkResolvedTasksHandler from './checkResolvedTasks';
+import { createApiFacade } from '~/linguo-api';
+import { getDefaultAccount } from '~/shared/account';
 
 const apiPromise = getDefaultAccount().then(({ privateKey, address }) =>
   createApiFacade({

@@ -1,12 +1,11 @@
 {
-  "name": "@kleros/linguo-bot",
+  "name": "@kleros/linguo-automation",
   "version": "0.1.0",
   "private": false,
-  "description": "Linguo automation bot.",
-  "repository": "https://github.com/kleros/linguo-bot",
+  "description": "Linguo Automation Services.",
+  "repository": "https://github.com/kleros/linguo-automation",
   "license": "MIT",
   "author": "Kleros",
-  "main": "dist/index.js",
   "scripts": {
     "build": "sls webpack --out dist",
     "clean": "rm -rf .webpack dist",
@@ -17,10 +16,12 @@
   },
   "dependencies": {
     "@kleros/archon": "0.10.2",
+    "@kleros/erc-792": "^7.0.0",
     "@kleros/linguo-contracts": "~0.4.0",
-    "aws-sdk": "^2.730.0",
+    "@sendgrid/mail": "^7.4.0",
     "core-js": "3",
     "dayjs": "^1.8.33",
+    "javascript-time-ago": "^2.3.3",
     "ramda": "^0.27.1",
     "web3": "1.2.6",
     "web3-batched-send": "^1.0.3"
@@ -36,6 +37,7 @@
     "@commitlint/cli": "^8.3.5",
     "@commitlint/config-conventional": "^8.3.4",
     "@types/ramda": "^0.27.14",
+    "aws-sdk": "^2.730.0",
     "babel-eslint": "^10.1.0",
     "babel-loader": "^8.1.0",
     "babel-plugin-ramda": "^2.0.0",
@@ -58,15 +60,15 @@
     "prettier": "^2.0.2",
     "prettier-config-standard": "^1.0.1",
     "prettier-plugin-packagejson": "^2.1.2",
-    "serverless": "^2.9.0",
+    "serverless": "^2.13.0",
     "serverless-dotenv-plugin": "^3.0.0",
-    "serverless-dynamodb-client": "^0.0.2",
     "serverless-dynamodb-local": "^0.2.39",
     "serverless-offline": "^6.5.0",
     "serverless-plugin-ifelse": "^1.0.5",
     "serverless-prune-plugin": "^1.4.3",
+    "serverless-pseudo-parameters": "^2.5.0",
     "serverless-webpack": "^5.3.5",
-    "webpack": "^4.44.1",
-    "webpack-node-externals": "^2.5.1"
+    "webpack": "^5.8.0",
+    "webpack-node-externals": "^2.5.2"
   }
 }
