@@ -13,9 +13,5 @@ export default async function getUserSettings({ web3, payload }) {
 
   const data = await UserSettings.getByAddress(address);
 
-  if (recoveredAddress !== data.derivedAccountAddress) {
-    throw new Error('Signature does not match derived account address!');
-  }
-
-  return data;
+  return recoveredAddress === data?.derivedAccountAddress ? data : {};
 }

@@ -1,4 +1,4 @@
-import DynamoDB from 'serverless-dynamodb-client';
+import { DynamoDB } from 'aws-sdk';
 import { compose, curry, flatten, join, map, mergeAll, pluck, splitEvery, toPairs } from 'ramda';
 import * as P from '~/shared/promise';
 
@@ -6,7 +6,14 @@ const DYNAMO_DB_MAX_BATCH_SIZE = 25;
 const splitBatches = splitEvery(DYNAMO_DB_MAX_BATCH_SIZE);
 
 export function createEnhancedClient() {
-  const client = DynamoDB.doc;
+  const params = process.env.IS_LOCAL
+    ? {
+        region: 'localhost',
+        endpoint: 'http://localhost:8000',
+      }
+    : {};
+
+  const client = new DynamoDB.DocumentClient(params);
 
   const writeSingleBatch = curry(function _writeSingleBatch(tableName, batch) {
     return client
