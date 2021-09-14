@@ -1,12 +1,15 @@
 import {
+  andThen,
   compose,
   evolve,
   filter,
+  flatten,
   fromPairs,
   into,
   map,
   mergeRight,
   path,
+  pipeWith,
   prop,
   propEq,
   range,
@@ -20,7 +23,9 @@ import archon from '~/shared/archon';
 import * as P from '~/shared/promise';
 import getPastEvents from './getPastEvents';
 
-export default function createApiInstance({ linguo, batchSend }) {
+const asyncPipe = pipeWith((f, res) => andThen(f, P.resolve(res)));
+
+export default function createApiInstance({ linguo, arbitrator, batchSend }) {
   const contractAddress = linguo.options.address;
 
   async function fetchAllTasks() {
@@ -73,7 +78,7 @@ export default function createApiInstance({ linguo, batchSend }) {
     return Number(await linguo.methods.reviewTimeout().call());
   }
 
-  async function fetchHasDispute(id) {
+  async function fetchTaskHasDispute(id) {
     const events = await getPastEvents(linguo, 'TranslationChallenged', { filter: { _taskID: String(id) } });
     return events.length > 0;
   }
@@ -114,6 +119,47 @@ export default function createApiInstance({ linguo, batchSend }) {
     )(balancePairs);
   }
 
+  async function fetchAllEvents({ fromBlock = 0, toBlock = 'latest' }) {
+    const [linguoEvents, arbitratorEvents] = await Promise.all([
+      _fetchAllLinguoEvents({ fromBlock, toBlock }),
+      _fetchAllArbitratorEvents({ fromBlock, toBlock }),
+    ]);
+
+    const events = flatten([linguoEvents, arbitratorEvents]);
+
+    return events;
+  }
+
+  async function _fetchAllLinguoEvents({ fromBlock, toBlock }) {
+    return await Promise.all([
+      getPastEvents(linguo, 'TaskCreated', { fromBlock, toBlock }),
+      getPastEvents(linguo, 'TaskAssigned', { fromBlock, toBlock }),
+      getPastEvents(linguo, 'TranslationSubmitted', { fromBlock, toBlock }),
+      getPastEvents(linguo, 'TranslationChallenged', { fromBlock, toBlock }),
+      getPastEvents(linguo, 'TaskResolved', { fromBlock, toBlock }),
+      getPastEvents(linguo, 'AppealContribution', { fromBlock, toBlock }),
+      getPastEvents(linguo, 'HasPaidAppealFee', { fromBlock, toBlock }),
+    ]);
+  }
+
+  async function _fetchAllArbitratorEvents({ fromBlock, toBlock }) {
+    const _onlyMatchingDisputeId = ({ event, task }) =>
+      String(event.returnValues._disputeID) === String(task.disputeID);
+
+    const _filterRelevantArbitratorEvents = asyncPipe([
+      map(async event => ({
+        event,
+        task: await linguo.methods.disputeIDtoTaskID(event.returnValues._disputeID).call(),
+      })),
+      P.all,
+      into([], compose(filter(_onlyMatchingDisputeId), map(prop('event')))),
+    ]);
+
+    return await _filterRelevantArbitratorEvents(
+      await getPastEvents(arbitrator, 'AppealPossible', { fromBlock, toBlock })
+    );
+  }
+
   async function _fetchTaskMetadata(id) {
     const { metaEvidenceJSON } = await archon.arbitrable.getMetaEvidence(contractAddress, String(id));
 
@@ -137,7 +183,7 @@ export default function createApiInstance({ linguo, batchSend }) {
   }
 
   async function _fetchFinalRuling(id) {
-    const hasDispute = await fetchHasDispute(id);
+    const hasDispute = await fetchTaskHasDispute(id);
     if (!hasDispute) {
       throw new Error(`Task ${contractAddress}/${id} do not have a dispute.`);
     }
@@ -190,8 +236,9 @@ export default function createApiInstance({ linguo, batchSend }) {
     fetchTaskWithMetadataById,
     fetchTaskById,
     fetchReviewTimeout,
-    fetchHasDispute,
+    fetchTaskHasDispute,
     fetchAllContributorsWithPendingWithdrawals,
+    fetchAllEvents,
     reimburseRequester,
     acceptTranslation,
     withdrawAllFeesAndRewards,

@@ -1,10 +1,10 @@
 import { map } from 'ramda';
 import { getBlockHeight, updateBlockHeight } from '~/off-chain-storage/chainMetadata';
 import { saveTasks } from '~/off-chain-storage/tasks';
-import web3 from '~/shared/web3';
+import { getLatestBlockNumber } from '~/shared/web3';
 
 export default async function checkNewTasks({ linguoOnChainApi }) {
-  const [fromBlock, toBlock] = await Promise.all([getBlockHeight('NEW_TASKS'), getCurrentBlockNumber()]);
+  const [fromBlock, toBlock] = await Promise.all([getBlockHeight('NEW_TASKS'), getLatestBlockNumber()]);
 
   const newTasks = await linguoOnChainApi.fetchNewTasks({ fromBlock, toBlock });
 
@@ -34,8 +34,4 @@ export default async function checkNewTasks({ linguoOnChainApi }) {
   console.info(stats, 'Processed new tasks');
 
   return stats;
-}
-
-async function getCurrentBlockNumber() {
-  return Number(await web3.eth.getBlockNumber());
 }

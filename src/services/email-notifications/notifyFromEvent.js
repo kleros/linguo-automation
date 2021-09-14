@@ -3,7 +3,7 @@ import Linguo from '@kleros/linguo-contracts/artifacts/Linguo.json';
 import { flatten } from 'ramda';
 import TimeAgo from 'javascript-time-ago';
 import en from 'javascript-time-ago/locale/en';
-import { generateTaskUrl } from '~/linguo-api';
+import { getTaskUrl } from '~/linguo-api';
 import { getByAddress } from '~/off-chain-storage/userSettings';
 import * as P from '~/shared/promise';
 import sendgrid from '~/shared/sendgrid';
@@ -13,11 +13,15 @@ import getUnsubscribeSignerAccount from './getUnsubscribeSignerAccount';
 TimeAgo.addDefaultLocale(en);
 
 export default async function notifyFromEvent(event) {
+  const chainId = await web3.eth.getChainId();
   const linguo = new web3.eth.Contract(Linguo.abi, event.address);
 
-  let notifications;
+  let notifications = [];
   try {
-    notifications = await handlers[event.event](linguo, event);
+    const handler = handlers[event.event];
+    if (handler) {
+      notifications = await handler(chainId, linguo, event);
+    }
   } catch (err) {
     console.warn('Failed to process the event', { error: err, event });
     throw err;
@@ -35,8 +39,10 @@ export default async function notifyFromEvent(event) {
         }),
       notifications
     );
+
+    return { event, notifications };
   } catch (err) {
-    return Object.create(err, {
+    throw Object.create(err, {
       cause: {
         value: err.response?.body?.errors ?? new Error('Unknown error'),
         enumerable: true,
@@ -65,16 +71,17 @@ const ResolveReason = {
 };
 
 const illustrationsByKey = {
-  assigned: '//ipfs.kleros.io/ipfs/QmPfRE5CWWBB6U7yuYXpgNpb5BC2CpgbD1Wh8biNGCtycQ/avatar-task-assigned.svg',
-  submitted: '//ipfs.kleros.io/ipfs/QmdupLw1Y2dn9MWis8Yi8b7bQyC2q4ViS1vzmfbgjWh5Z6/avatar-task-awaiting-review.svg',
-  challenged: '//ipfs.kleros.io/ipfs/QmSSKTtD7z8Go1gqUywAZpQ7pvGorrQsD2VbcdVRchySGj/challenged.svg',
-  accepted: '//ipfs.kleros.io/ipfs/QmPfJBZHmwLCQrQhu6Ey1KCYJDDD7VPnGWzynCs2c3FtoY/accepted.svg',
-  'appeal.funding': '//ipfs.kleros.io/ipfs/QmRyGCzhcduood3qB54Nf3ihLTKy23zDqmtQnBvknoWZRZ/appeal-funding.svg',
-  'appeal.issued': '//ipfs.kleros.io/ipfs/QmU2aTSMmu7GiTh48iWujxiHeZCotsUeQ8LugZSdRanNPk/appeal-issued.svg',
-  'ruling.approved': '//ipfs.kleros.io/ipfs/QmNTA7ZJb1H7eJn8Yiau3c1nCNN9t3ZzAe1zRTM5EaWbv1/resolved-approved.svg',
-  'ruling.rejected': '//ipfs.kleros.io/ipfs/Qmc6Mh47dSkNVG4aPPpWXeqSVbRBbPaGsob9ZmRbzPqFPo/resolved-rejected.svg',
-  'ruling.none': '//ipfs.kleros.io/ipfs/QmWevfTH2gJVRfdm7HzuZoMEoURHNSwTSEFbJrnQ8yt1FY/refused-to-rule.svg',
-  incomplete: '//ipfs.kleros.io/ipfs/QmU9h6E5S41nX3ZD2NUvkvT61p2mWnBH3rMBQPtkniS6Fk/incomplete.svg',
+  assigned: 'https://ipfs.kleros.io/ipfs/QmZ4do4Xw3Arq3qutqrjSbh5SNwpKW5BzRckH6WYNyiKiU/avatar-task-assigned.png',
+  submitted:
+    'https://ipfs.kleros.io/ipfs/QmeurSgjtBxNnmbdXffSmYvwkFVg84TFVpnahNCV2B2t7v/avatar-task-awaiting-review.png',
+  challenged: 'https://ipfs.kleros.io/ipfs/QmTBm9tpQvHmHabcT8wkkvEPnpTLLXodfvPstUv1yaZdzU/challenged.png',
+  accepted: 'https://ipfs.kleros.io/ipfs/QmWNU5PhF9h9pmECVzr92bwFSuLpcpHdFKhyFukRwr4BxS/accepted.png',
+  'appeal.funding': 'https://ipfs.kleros.io/ipfs/QmSJsqdtvpYrPbS87f7VsYScJjrHUU3smvwwgf5UBtoUc3/appeal-funding.png',
+  'appeal.issued': 'https://ipfs.kleros.io/ipfs/QmRWxRyemK6bnSKYfjhbHjXTpwnx2N95BG13fbUEziL5SD/appeal-issued.png',
+  'ruling.approved': 'https://ipfs.kleros.io/ipfs/QmXVyLmAga6V6ZsoBDN1B9j5uq8YqpnFL6vQiizeYdyD9R/resolved-approved.png',
+  'ruling.rejected': 'https://ipfs.kleros.io/ipfs/QmQm1DPaQq4VW3wSRej3oAKz5PspjfhwUWV2BZvA8ZzEMM/resolved-rejected.png',
+  'ruling.none': 'https://ipfs.kleros.io/ipfs/QmeoyEVygu1nHQpAAgneMVUkbaeb98tn4UwPLjBHMphpdj/refused-to-rule.png',
+  incomplete: 'https://ipfs.kleros.io/ipfs/QmU7P9smaLFpPAgot296A3ujqKhWWMeHZiNRrptZXN918x/incomplete.png',
 };
 
 async function generateUnsubscribeUrl({ address, email }) {
@@ -88,7 +95,7 @@ async function generateUnsubscribeUrl({ address, email }) {
 }
 
 const linguoEventHandlers = {
-  async TaskAssigned(linguo, event) {
+  async TaskAssigned(chainId, linguo, event) {
     const taskId = event.returnValues?._taskID;
 
     const { requester } = await linguo.methods.tasks(taskId).call();
@@ -98,26 +105,25 @@ const linguoEventHandlers = {
       return [];
     }
 
+    console.debug('>>>>>>>>', await generateUnsubscribeUrl(settings));
+
     return [
       {
         to: settings.email,
         templateId: 'd-f17ff369120e4ca2a4003eefea4cbf5b',
         dynamicTemplateData: {
-          subject: 'Your translation was assigned to a translator',
+          subject: `Translation #${taskId} was assigned to a translator`,
           text:
             'The translation task was assigned to a translator. You will be informed once the translation is delivered.',
           greeting: settings.fullName ? `Hi there, ${settings.fullName}` : 'Hi there!',
-          taskUrl: generateTaskUrl({
-            address: event.address,
-            id: taskId,
-          }),
+          taskUrl: getTaskUrl({ chainId, address: event.address, id: taskId }),
           unsubscribe: await generateUnsubscribeUrl(settings),
           illustration: illustrationsByKey.assigned,
         },
       },
     ];
   },
-  async TranslationSubmitted(linguo, event) {
+  async TranslationSubmitted(chainId, linguo, event) {
     const taskId = event.returnValues?._taskID;
 
     const { requester } = await linguo.methods.tasks(taskId).call();
@@ -140,25 +146,19 @@ const linguoEventHandlers = {
         to: settings.email,
         templateId: 'd-f17ff369120e4ca2a4003eefea4cbf5b',
         dynamicTemplateData: {
-          subject: 'The translator delivered a translation',
+          subject: `The translator delivered translation #${taskId}`,
           text: `The translation was delivered. The review phase ends <strong>${formattedReviewDeadline}</strong>. During this period anyone (including yourself) can challenge the translation if they think it does not fulfill the quality requirements.`,
           greeting: settings.fullName ? `Hi there, ${settings.fullName}` : 'Hi there!',
-          taskUrl: generateTaskUrl({
-            address: event.address,
-            id: taskId,
-          }),
+          taskUrl: getTaskUrl({ chainId, address: event.address, id: taskId }),
           unsubscribe: await generateUnsubscribeUrl(settings),
           illustration: illustrationsByKey.submitted,
         },
       },
     ];
   },
-  async TranslationChallenged(linguo, event) {
+  async TranslationChallenged(chainId, linguo, event) {
     const taskId = event.returnValues?._taskID;
-    const taskUrl = generateTaskUrl({
-      address: event.address,
-      id: taskId,
-    });
+    const taskUrl = getTaskUrl({ chainId, address: event.address, id: taskId });
 
     const { requester } = await linguo.methods.tasks(taskId).call();
     const { [TaskParty.Translator]: translator } = await linguo.methods.getTaskParties(taskId).call();
@@ -178,7 +178,7 @@ const linguoEventHandlers = {
             to: settings.email,
             templateId: 'd-f17ff369120e4ca2a4003eefea4cbf5b',
             dynamicTemplateData: {
-              subject: 'A translation was challenged',
+              subject: `Translation #${taskId} was challenged`,
               text:
                 'Someone challenged a translation you requested. The case is now being evaluated by specialized jurors on Kleros Court.',
               greeting: settings.fullName ? `Hi there, ${settings.fullName}` : 'Hi there!',
@@ -201,7 +201,7 @@ const linguoEventHandlers = {
             to: settings.email,
             templateId: 'd-f17ff369120e4ca2a4003eefea4cbf5b',
             dynamicTemplateData: {
-              subject: 'Your translation was challenged',
+              subject: `Translation #${taskId} was challenged`,
               text:
                 'Someone challenged a translation you submitted. The case is now being evaluated by specialized jurors on Kleros Court.',
               greeting: settings.fullName ? `Hi there, ${settings.fullName}` : 'Hi there!',
@@ -216,13 +216,10 @@ const linguoEventHandlers = {
 
     return flatten(await P.all([handlersByParty.requester(requester), handlersByParty.translator(translator)]));
   },
-  async HasPaidAppealFee(linguo, event) {
+  async HasPaidAppealFee(chainId, linguo, event) {
     const taskId = event.returnValues?._taskID;
 
-    const taskUrl = generateTaskUrl({
-      address: event.address,
-      id: taskId,
-    });
+    const taskUrl = getTaskUrl({ chainId, address: event.address, id: taskId });
 
     const task = await linguo.methods.tasks(taskId).call();
     const disputeId = task.disputeID;
@@ -240,8 +237,8 @@ const linguoEventHandlers = {
             to: settings.email,
             templateId: 'd-f17ff369120e4ca2a4003eefea4cbf5b',
             dynamicTemplateData: {
-              subject: 'An appeal was issued',
-              text: `Case #${disputeId} has been appealed. Both parties have extra time to add evidence and a new round of jurors will be drawn.`,
+              subject: `Translation #${taskId} dispute has been appealed`,
+              text: `Translation #${taskId} dispute (case #${disputeId}) has been appealed. Both parties have extra time to add evidence and a new round of jurors will be drawn.`,
               greeting: settings.fullName ? `Hi there, ${settings.fullName}` : 'Hi there!',
               taskUrl,
               unsubscribe: await generateUnsubscribeUrl(settings),
@@ -263,7 +260,7 @@ const linguoEventHandlers = {
             to: settings.email,
             templateId: 'd-f17ff369120e4ca2a4003eefea4cbf5b',
             dynamicTemplateData: {
-              subject: '[Action Required] An appeal is in course',
+              subject: `[Action Required] Translation #${taskId} dispute has an appeal in course`,
               text: `The ${counterPartyRole} fully funded their side of the appeal. <strong>In order to not lose the case you must also fund yours</strong>.`,
               greeting: settings.fullName ? `Hi there, ${settings.fullName}` : 'Hi there!',
               taskUrl,
@@ -302,7 +299,7 @@ const linguoEventHandlers = {
       return internalHandlers.appealSideFunded(...args);
     }
   },
-  async TaskResolved(linguo, event) {
+  async TaskResolved(chainId, linguo, event) {
     const taskId = event.returnValues?._taskID;
 
     const handlersByReason = {
@@ -322,15 +319,12 @@ const linguoEventHandlers = {
                 to: settings.email,
                 templateId: 'd-f17ff369120e4ca2a4003eefea4cbf5b',
                 dynamicTemplateData: {
-                  subject: 'The deadline for your translation has passed',
+                  subject: `Translation #${taskId} deadline has passed`,
                   text: hasTranslator
-                    ? 'The translator failed to deliver the translation on time. You received your Requester Depoist back + the Translator Deposit.'
-                    : 'No translator was interested in translating your content this time. You were fully reimbursed of your Requester Deposit. Requesting the same task again with a higher payout might draw more attention.',
+                    ? 'The translator failed to deliver the translation on time. You received the bounty back + the Translator Deposit.'
+                    : 'No translator was interested in translating your content this time. You were fully reimbursed of the bounty. Requesting the same task again with a higher payout might draw more attention.',
                   greeting: settings.fullName ? `Hi there, ${settings.fullName}` : 'Hi there!',
-                  taskUrl: generateTaskUrl({
-                    address: event.address,
-                    id: taskId,
-                  }),
+                  taskUrl: getTaskUrl({ chainId, address: event.address, id: taskId }),
                   unsubscribe: await generateUnsubscribeUrl(settings),
                   illustration,
                 },
@@ -349,14 +343,11 @@ const linguoEventHandlers = {
                 to: settings.email,
                 templateId: 'd-f17ff369120e4ca2a4003eefea4cbf5b',
                 dynamicTemplateData: {
-                  subject: 'You missed the deadline for a translation',
+                  subject: `You missed the deadline for translation #${taskId}`,
                   text:
                     'You did not deliver the translation in time. Your Translator Deposit was sent to the requester as a compensation.',
                   greeting: settings.fullName ? `Hi there, ${settings.fullName}` : 'Hi there!',
-                  taskUrl: generateTaskUrl({
-                    address: event.address,
-                    id: taskId,
-                  }),
+                  taskUrl: getTaskUrl({ chainId, address: event.address, id: taskId }),
                   unsubscribe: await generateUnsubscribeUrl(settings),
                   illustration,
                 },
@@ -393,14 +384,10 @@ const linguoEventHandlers = {
                 to: settings.email,
                 templateId: 'd-f17ff369120e4ca2a4003eefea4cbf5b',
                 dynamicTemplateData: {
-                  subject: 'A translation task was accepted',
-                  text:
-                    'The translation was accepted without any challenges. Your Requester Deposit was sent to the translator.',
+                  subject: `Translation #${taskId} was accepted`,
+                  text: 'The translation was accepted without any challenges. The bounty was sent to the translator.',
                   greeting: settings.fullName ? `Hi there, ${settings.fullName}` : 'Hi there!',
-                  taskUrl: generateTaskUrl({
-                    address: event.address,
-                    id: taskId,
-                  }),
+                  taskUrl: getTaskUrl({ chainId, address: event.address, id: taskId }),
                   unsubscribe: await generateUnsubscribeUrl(settings),
                   illustration,
                 },
@@ -419,13 +406,10 @@ const linguoEventHandlers = {
                 to: settings.email,
                 templateId: 'd-f17ff369120e4ca2a4003eefea4cbf5b',
                 dynamicTemplateData: {
-                  subject: 'Your translation was accepted',
+                  subject: `Translation #${taskId} was accepted`,
                   text: 'The translation was accepted without any challenges. You received your payment.',
                   greeting: settings.fullName ? `Hi there, ${settings.fullName}` : 'Hi there!',
-                  taskUrl: generateTaskUrl({
-                    address: event.address,
-                    id: taskId,
-                  }),
+                  taskUrl: getTaskUrl({ chainId, address: event.address, id: taskId }),
                   unsubscribe: await generateUnsubscribeUrl(settings),
                   illustration,
                 },
@@ -452,15 +436,12 @@ const linguoEventHandlers = {
             ? illustrationsByKey['ruling.rejected']
             : '';
 
-        const taskUrl = generateTaskUrl({
-          address: event.address,
-          id: taskId,
-        });
+        const taskUrl = getTaskUrl({ chainId, address: event.address, id: taskId });
 
         const subjectsByRuling = {
-          [DisputeRuling.RefusedToRule]: 'Final decision: jurors refused to rule about a translation',
-          [DisputeRuling.TranslationApproved]: 'Final decision: jurors approved a translation',
-          [DisputeRuling.TranslationRejected]: 'Final decision: jurors rejected a translation',
+          [DisputeRuling.RefusedToRule]: `Final decision: jurors refused to rule about translation #${taskId}`,
+          [DisputeRuling.TranslationApproved]: `Final decision: jurors approved translation #${taskId}`,
+          [DisputeRuling.TranslationRejected]: `Final decision: jurors rejected translation #${taskId}`,
         };
 
         const handlersByParty = {
@@ -471,9 +452,9 @@ const linguoEventHandlers = {
             }
 
             const textsByRuling = {
-              [DisputeRuling.RefusedToRule]: `The jurors refused to rule about the translation. You received your Requester Deposit back.`,
-              [DisputeRuling.TranslationApproved]: `The jurors approved the translation. Your Requester Deposit was sent to the translator.`,
-              [DisputeRuling.TranslationRejected]: `The jurors rejected the translation. You received your Requester Deposit back.`,
+              [DisputeRuling.RefusedToRule]: `The jurors refused to rule about translation #${taskId}. You received the bounty back.`,
+              [DisputeRuling.TranslationApproved]: `The jurors approved translation #${taskId}. The bounty was sent to the translator.`,
+              [DisputeRuling.TranslationRejected]: `The jurors rejected translation #${taskId}. You received the bounty back.`,
             };
 
             return [
@@ -498,9 +479,9 @@ const linguoEventHandlers = {
             }
 
             const textsByRuling = {
-              [DisputeRuling.RefusedToRule]: `The jurors refused to rule about the translation. You received your Translator Deposit back.`,
-              [DisputeRuling.TranslationApproved]: `The jurors approved the translation. You received your payment + the Challenger Deposit.`,
-              [DisputeRuling.TranslationRejected]: `The jurors rejected the translation. Your Translator Deposit was sent to the challenger..`,
+              [DisputeRuling.RefusedToRule]: `The jurors refused to rule about translation #${taskId}. You received your Translator Deposit back.`,
+              [DisputeRuling.TranslationApproved]: `The jurors approved translation #${taskId}. You received your payment + the Challenger Deposit.`,
+              [DisputeRuling.TranslationRejected]: `The jurors rejected translation #${taskId}. Your Translator Deposit was sent to the challenger..`,
             };
 
             return [
@@ -526,12 +507,12 @@ const linguoEventHandlers = {
 
             const textsByRuling = {
               [DisputeRuling.RefusedToRule]: `The jurors refused to rule about the translation.${
-                challengerIsRequester ? ' You received your Requester Deposit back.' : ''
+                challengerIsRequester ? ' You received the bounty back.' : ''
               } `,
-              [DisputeRuling.TranslationApproved]: `The jurors approved the translation. Your Requester Deposit${
+              [DisputeRuling.TranslationApproved]: `The jurors approved the translation. The bounty${
                 challengerIsRequester ? ' + your Challenger Deposit' : ''
               } was sent to the translator.`,
-              [DisputeRuling.TranslationRejected]: `The jurors rejected the translation. You received back your Requester Deposit${
+              [DisputeRuling.TranslationRejected]: `The jurors rejected the translation. You received back the bounty${
                 challengerIsRequester ? ' + your Challenger Deposit' : ''
               } and also the Translator Deposit.`,
             };
@@ -575,7 +556,7 @@ const linguoEventHandlers = {
 };
 
 const arbitratorEventHandlers = {
-  async AppealPossible(_, event) {
+  async AppealPossible(chainId, _, event) {
     const disputeId = event.returnValues._disputeID;
     const address = event.returnValues._arbitrable;
     const linguo = new web3.eth.Contract(Linguo.abi, address);
@@ -595,10 +576,7 @@ const arbitratorEventHandlers = {
       return [];
     }
 
-    const taskUrl = generateTaskUrl({
-      address: linguo.options.address,
-      id: taskId,
-    });
+    const taskUrl = getTaskUrl({ chainId, address: linguo.options.address, id: taskId });
 
     const arbitrator = new web3.eth.Contract(IArbitrator.abi, await linguo.methods.arbitrator().call());
     const ruling = await arbitrator.methods.currentRuling(disputeId).call();
@@ -621,9 +599,9 @@ const arbitratorEventHandlers = {
     }
 
     const subjectsByRuling = {
-      [DisputeRuling.RefusedToRule]: 'Juros refused to rule about a translation',
-      [DisputeRuling.TranslationApproved]: 'Jurors approved a translation',
-      [DisputeRuling.TranslationRejected]: 'Jurors rejected a translation',
+      [DisputeRuling.RefusedToRule]: `Juros refused to rule about translation #${taskId}`,
+      [DisputeRuling.TranslationApproved]: `Jurors approved a translation #${taskId}`,
+      [DisputeRuling.TranslationRejected]: `Jurors rejected a translation #${taskId}`,
     };
 
     const illustration =

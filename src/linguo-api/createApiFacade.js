@@ -6,6 +6,7 @@ const publicApiSkeleton = {
   // Methods bellow target all contracts
   fetchAllTasks() {},
   fetchNewTasks() {},
+  fetchAllEvents() {},
 
   // Methods bellow target a specific contract
 
@@ -13,7 +14,7 @@ const publicApiSkeleton = {
   fetchTaskWithMetadataById(contractAddress, id) {},
   fetchTaskById(contractAddress, id) {},
   fetchReviewTimeout(contractAddress) {},
-  fetchHasDispute(contractAddress, id) {},
+  fetchTaskHasDispute(contractAddress, id) {},
   fetchAllContributorsWithPendingWithdrawals(contractAddress, id) {},
   reimburseRequester(contractAddress, id) {},
   acceptTranslation(contractAddress, id) {},
@@ -23,8 +24,8 @@ const publicApiSkeleton = {
 
 const createProxy = curry((handler, target) => new Proxy(target, handler));
 
-export default function createApiFacade({ account }) {
-  const apiInstances = createApiInstancesByAddress({ account });
+export default async function createApiFacade({ account }) {
+  const apiInstances = await createApiInstancesByAddress({ account });
   const apiInstancesList = values(apiInstances);
 
   const callAllContractsAndMergeResultsHandler = {
@@ -50,15 +51,17 @@ export default function createApiFacade({ account }) {
     },
   };
 
-  const { fetchAllTasks, fetchNewTasks } = compose(
+  const callAllMethods = ['fetchAllTasks', 'fetchNewTasks', 'fetchAllEvents'];
+
+  const { fetchAllTasks, fetchNewTasks, fetchAllEvents } = compose(
     map(createProxy(callAllContractsAndMergeResultsHandler)),
-    pick(['fetchAllTasks', 'fetchNewTasks'])
+    pick(callAllMethods)
   )(publicApiSkeleton);
 
   const remainingMethods = compose(
     map(createProxy(deriveContractFromParamsHandler)),
-    omit(['fetchAllTasks', 'fetchNewTasks'])
+    omit(callAllMethods)
   )(publicApiSkeleton);
 
-  return { fetchAllTasks, fetchNewTasks, ...remainingMethods };
+  return { fetchAllTasks, fetchNewTasks, fetchAllEvents, ...remainingMethods };
 }

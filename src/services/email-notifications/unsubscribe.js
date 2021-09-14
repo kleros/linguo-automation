@@ -1,4 +1,4 @@
-import { getByAddress, removeByAddress } from '~/off-chain-storage/userSettings';
+import { getByAddress, save } from '~/off-chain-storage/userSettings';
 import web3 from '~/shared/web3';
 import getUnsubscribeSignerAccount from './getUnsubscribeSignerAccount';
 
@@ -29,7 +29,7 @@ export default async function unsubscribe({ message, token }) {
     throw new Error('Subscription not found.');
   }
 
-  await removeByAddress(payload.address);
+  await save({ ...settings, emailPreferences: {} });
 
   return 'You were successfully unsubscribed!';
 }

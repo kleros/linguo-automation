@@ -19,9 +19,9 @@ import * as P from '~/shared/promise';
 const asyncPipe = pipeWith((f, res) => andThen(f, P.resolve(res)));
 
 export default async function checkResolvedTasks({ linguoOnChainApi }) {
-  async function fetchHasDispute(task) {
+  async function fetchTaskHasDispute(task) {
     const { contractAddress, id } = task;
-    return linguoOnChainApi.fetchHasDispute(contractAddress, id);
+    return linguoOnChainApi.fetchTaskHasDispute(contractAddress, id);
   }
 
   async function fetchOnChainCounterpart(offChainTask) {
@@ -29,7 +29,7 @@ export default async function checkResolvedTasks({ linguoOnChainApi }) {
 
     const [onChainTask, hasDispute] = await await Promise.all([
       linguoOnChainApi.fetchTaskById(contractAddress, id),
-      fetchHasDispute(offChainTask),
+      fetchTaskHasDispute(offChainTask),
     ]);
     const pendingWithdrawals = hasDispute
       ? await linguoOnChainApi.fetchAllContributorsWithPendingWithdrawals(contractAddress, id)
@@ -89,7 +89,7 @@ export default async function checkResolvedTasks({ linguoOnChainApi }) {
       }
     };
 
-    const successfulWithdraws = await asyncPipe([
+    const successfulWithdrawals = await asyncPipe([
       toPairs,
       map(withdrawAllFeesAndRewards),
       P.allSettled,
@@ -101,7 +101,7 @@ export default async function checkResolvedTasks({ linguoOnChainApi }) {
 
     return {
       ...task,
-      successfulWithdraws,
+      successfulWithdrawals,
     };
   }
 

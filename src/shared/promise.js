@@ -1,3 +1,5 @@
+import { curry, unary } from 'ramda';
+
 const allSettledPolyfill = arrP =>
   Promise.all(
     arrP.map(async p => {
@@ -18,8 +20,18 @@ const allSettledPolyfill = arrP =>
 export const allSettled =
   typeof Promise.allSettled === 'function' ? Promise.allSettled.bind(Promise) : allSettledPolyfill;
 
-export const all = Promise.all.bind(Promise);
-export const race = Promise.race.bind(Promise);
-export const resolve = Promise.resolve.bind(Promise);
-export const reject = Promise.reject.bind(Promise);
-export const map = (fn, arr) => Promise.all(arr.map(item => fn(item)));
+export const all = unary(Promise.all.bind(Promise));
+export const race = unary(Promise.race.bind(Promise));
+export const resolve = unary(Promise.resolve.bind(Promise));
+export const reject = unary(Promise.reject.bind(Promise));
+export const map = curry(async (fn, arr) => await Promise.all(arr.map(item => fn(item))));
+export const mapSeries = curry(async (fn, arr) => {
+  const result = [];
+  let index = 0;
+
+  for (const item of arr) {
+    result.push(await fn(await item, index++));
+  }
+
+  return result;
+});

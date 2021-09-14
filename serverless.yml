@@ -23,13 +23,10 @@ service: linguo-automation
 plugins:
   - serverless-webpack
   - serverless-dotenv-plugin
-  - serverless-pseudo-parameters
   - serverless-plugin-ifelse
   - serverless-dynamodb-local
   - serverless-offline
-
-# package:
-#   individually: true
+  - serverless-offline-sns
 
 useDotenv: true
 
@@ -44,6 +41,7 @@ custom:
   dynamodb:
     stages:
       - kovan
+      - sokol
     start:
       port: 8000
       inMemory: true
@@ -55,21 +53,18 @@ custom:
     # Uncomment only if you already have a DynamoDB running locally
     # noStart: true
 
+  serverless-offline-sns:
+    port: 4002 # a free port for the sns server to run on
+
   currentStage: ${opt:stage, self:provider.stage}
-  serverlessIfElse:
-    - If: '"${self:custom.currentStage}" == "kovan"'
-      Set:
-        provider.environment.CHAIN_ID: 42
-      ElseSet:
-        provider.environment.CHAIN_ID: 1
 
   webServiceEndpoint:
     Fn::Join:
       - ''
       - - 'https://'
         - Ref: ApiGatewayRestApi
-        - '.unsubscribe.'
-        - Ref: AWS::Region
+        - '.execute-api.'
+        - ${aws:region}
         - '.amazonaws.com/'
         - ${self:provider.stage}
 
@@ -77,56 +72,78 @@ custom:
     automatic: true
     number: 4
 
+  chainId:
+    kovan: 42
+    mainnet: 1
+    sokol: 77
+    xdai: 100
+
+  jsonRpcUrl:
+    kovan: https://kovan.infura.io/v3/${env:INFURA_API_KEY}
+    mainnet: https://mainnet.infura.io/v3/${env:INFURA_API_KEY}
+    sokol: https://sokol.poa.network
+    xdai: https://blockscout.com/poa/sokol
+
+variablesResolutionMode: 20210326
+
 provider:
   name: aws
   region: ${env:AWS_REGION,'us-east-2'}
-  stage: kovan
-  runtime: nodejs10.x
+  stage: sokol
+  runtime: nodejs14.x
+  lambdaHashingVersion: "20201221"
   apiGateway:
     shouldStartNameWithService: true
   environment:
+    CHAIN_ID: ${self:custom.chainId.${self:custom.currentStage}}
+    JSON_RPC_URL: ${self:custom.jsonRpcUrl.${self:custom.currentStage}}
     TASKS_TABLE_NAME: Linguo_TranslationTasks_${self:custom.currentStage}
     CHAIN_METADATA_TABLE_NAME: Linguo_ChainMetadata_${self:custom.currentStage}
     USER_SETTINGS_TABLE_NAME: Linguo_UserSettings_${self:custom.currentStage}
+    EVENTS_TOPIC_NAME: Linguo_OnChainEvents_${self:custom.currentStage}.fifo
+    EVENTS_TOPIC_ARN: !Ref OnChainEventsTopic
+    EMAIL_NOTIFICATIONS_QUEUE_NAME: Linguo_EmailNotifications_${self:custom.currentStage}.fifo
+    EMAIL_NOTIFICATIONS_DLQ_NAME: Linguo_EmailNotificationsDLQ_${self:custom.currentStage}.fifo
+    EMAIL_NOTIFICATIONS_QUEUE_URL: !Ref EmailNotificationsQueue
 
 # you can add statements to the Lambda function's IAM Role here
-  iamRoleStatements:
-    - Effect: "Allow"
-      Action:
-        - "s3:ListBucket"
-      Resource: arn:aws:s3:::kleros-bots-private-keys
-    - Effect: "Allow"
-      Action:
-        - "s3:GetObject"
-      Resource:
-        Fn::Join:
-          - ""
-          - - arn:aws:s3:::kleros-bots-private-keys
-            - "/linguo.json"
-    - Effect: "Allow"
-      Action:
-        - "dynamodb:*"
-      Resource:
-        - Fn::GetAtt: [ ChainMetadataTable, Arn ]
-        - Fn::GetAtt: [ TranslationTasksTable, Arn ]
-        - Fn::Join:
-          - ""
-          - - Fn::GetAtt: [ TranslationTasksTable, Arn ]
-            - "/index/byStatus"
-        - Fn::GetAtt: [ UserSettingsTable, Arn ]
-
-# you can define service wide environment variables here
-#  environment:
-#    variable1: value1
-
-# you can add packaging information here
-#package:
-#  include:
-#    - include-me.js
-#    - include-me-dir/**
-#  exclude:
-#    - exclude-me.js
-#    - exclude-me-dir/**
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - "s3:ListBucket"
+          Resource: arn:aws:s3:::kleros-bots-private-keys
+        - Effect: "Allow"
+          Action:
+            - "s3:GetObject"
+          Resource:
+            Fn::Join:
+              - ""
+              - - arn:aws:s3:::kleros-bots-private-keys
+                - "/linguo.json"
+        - Effect: "Allow"
+          Action:
+            - "dynamodb:*"
+          Resource:
+            - Fn::GetAtt: [ ChainMetadataTable, Arn ]
+            - Fn::GetAtt: [ TranslationTasksTable, Arn ]
+            - Fn::Join:
+              - ""
+              - - Fn::GetAtt: [ TranslationTasksTable, Arn ]
+                - "/index/byStatus"
+            - Fn::GetAtt: [ UserSettingsTable, Arn ]
+        - Effect: "Allow"
+          Action:
+            - "sns:*"
+          Resource:
+            - Ref: OnChainEventsTopic
+        - Effect: "Allow"
+          Action:
+            - "sqs:*"
+          Resource:
+            - Fn::GetAtt: [ EmailNotificationsQueue, Arn ]
+            - Fn::GetAtt: [ EmailNotificationsDLQ, Arn ]
 
 functions:
   checkNewTasks:
@@ -135,24 +152,28 @@ functions:
     events:
       - schedule:
           rate: cron(0 * * * ? *) # every hour hh:00
+
   checkIncompleteTasks:
     handler: src/handlers/task-lifecycle/index.checkIncompleteTasks
     timeout: 900
     events:
       - schedule:
           rate: cron(0 * * * ? *) # every hour hh:00
+
   checkTasksAwaitingReview:
     handler: src/handlers/task-lifecycle/index.checkTasksAwaitingReview
     timeout: 900
     events:
       - schedule:
           rate: cron(10 * * * ? *) # every hour hh:10
+
   checkTasksInDispute:
     handler: src/handlers/task-lifecycle/index.checkTasksInDispute
     timeout: 900
     events:
       - schedule:
           rate: cron(20 * * * ? *) # every hour hh:20
+
   checkResolvedTasks:
     handler: src/handlers/task-lifecycle/index.checkResolvedTasks
     timeout: 900
@@ -171,8 +192,9 @@ functions:
           method: PUT
           cors: true
           request:
-            schema:
+            schemas:
               application/json: ${file(src/schemas/saveUserSettings.json)}
+
   getUserSettings:
     handler: src/handlers/user-settings/index.getUserSettings
     events:
@@ -181,23 +203,35 @@ functions:
           method: GET
           cors: true
 
+  checkEvents:
+    handler: src/handlers/on-chain-events/index.checkEvents
+    timeout: 900
+    events:
+      - schedule:
+          rate: cron(0 * * * ? *) # every hour at hh:00
+
+  emailNotifications:
+    handler: src/handlers/email-notifications/index.receiveEvent
+    environment:
+      UNSUBSCRIBE_ENDPOINT:
+        Fn::Join:
+          - ''
+          - - ${self:custom.webServiceEndpoint}
+            - /unsubscription
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt: [ EmailNotificationsQueue, Arn ]
+          batchSize: 1
+
   unsubscribe:
-    handler: src/handlers/user-settings/index.receiveUnsubscription
+    handler: src/handlers/email-notifications/index.receiveUnsubscription
     events:
       - http:
           path: unsubscription
           method: GET
           cors: true
 
-  eventsWebhook:
-    handler: src/handlers/events-webhook/index.receiveEvent
-    events:
-      - http:
-          path: event
-          method: POST
-          cors: true
-    environment:
-      UNSUBSCRIBE_ENDPOINT: https://#{ApiGatewayRestApi}.execute-api.#{AWS::Region}.amazonaws.com/${self:provider.stage}/unsubscription
 
 # you can add CloudFormation resource templates here
 resources:
@@ -260,7 +294,51 @@ resources:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
 
-  # Outputs:
-  #    NewOutput:
-  #      Description: "Description for the output"
-  #      Value: "Some output value"
+    OnChainEventsTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: ${self:provider.environment.EVENTS_TOPIC_NAME}
+        FifoTopic: true
+        Subscription:
+          - Endpoint:
+              Fn::GetAtt: [ EmailNotificationsQueue, Arn ]
+            Protocol: "sqs"
+
+    EmailNotificationsQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:provider.environment.EMAIL_NOTIFICATIONS_QUEUE_NAME}
+        FifoQueue: true
+        DeduplicationScope: messageGroup
+        MessageRetentionPeriod: 1209600 # 14 days
+        VisibilityTimeout: 300 # 5 minutes
+        RedrivePolicy:
+          deadLetterTargetArn:
+            Fn::GetAtt: [ EmailNotificationsDLQ, Arn ]
+          maxReceiveCount: 5
+
+    EmailNotificationsDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:provider.environment.EMAIL_NOTIFICATIONS_DLQ_NAME}
+        FifoQueue: true
+        MessageRetentionPeriod: 1209600 # 14 days
+
+    EmailNotificationsQueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - Ref: EmailNotificationsQueue
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            Sid: allow-sns-messages
+            Effect: Allow
+            Principal: '*'
+            Action:
+              - sqs:SendMessage
+            Resource:
+              Fn::GetAtt: [ EmailNotificationsQueue, Arn ]
+            Condition:
+              ArnEquals:
+                'aws:SourceArn': !Ref OnChainEventsTopic

@@ -7,13 +7,14 @@ import checkResolvedTasksHandler from './checkResolvedTasks';
 import { createApiFacade } from '~/linguo-api';
 import { getDefaultAccount } from '~/shared/account';
 
-const apiPromise = getDefaultAccount().then(({ privateKey, address }) =>
-  createApiFacade({
-    account: {
-      privateKey,
-      address,
-    },
-  })
+const apiPromise = getDefaultAccount().then(
+  async ({ privateKey, address }) =>
+    await createApiFacade({
+      account: {
+        privateKey,
+        address,
+      },
+    })
 );
 
 export async function fullSync(event) {
