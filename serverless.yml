@@ -82,7 +82,7 @@ custom:
     kovan: https://kovan.infura.io/v3/${env:INFURA_API_KEY}
     mainnet: https://mainnet.infura.io/v3/${env:INFURA_API_KEY}
     sokol: https://sokol.poa.network
-    xdai: https://blockscout.com/poa/sokol
+    xdai: https://rpc.xdaichain.com
 
 variablesResolutionMode: 20210326
 
