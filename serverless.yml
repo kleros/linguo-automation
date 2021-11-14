@@ -255,6 +255,8 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
         GlobalSecondaryIndexes:
           - IndexName: byStatus
             KeySchema:
@@ -279,6 +281,8 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
 
     UserSettingsTable:
       Type: AWS::DynamoDB::Table
@@ -293,6 +297,8 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
 
     OnChainEventsTopic:
       Type: AWS::SNS::Topic
